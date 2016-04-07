@@ -2,6 +2,8 @@ __author__ = 'giacomov'
 
 import numpy as np
 import emcee
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import corner
 
