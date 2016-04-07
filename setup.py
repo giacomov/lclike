@@ -9,6 +9,8 @@ setup(
 
     packages=['lclike'],
 
+    scripts= ['lclike/lclike.py'],
+
     #data_files=[('astromodels/data/functions', glob.glob('astromodels/data/functions/*.yaml'))],
 
     version='0.1',
