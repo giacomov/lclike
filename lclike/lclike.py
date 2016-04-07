@@ -1,0 +1,279 @@
+#!/usr/bin/env python
+
+__author__ = 'giacomov'
+
+import os
+import contextlib
+import logging
+import ast
+import collections
+
+import numpy as np
+import iminuit
+from UnbinnedAnalysis import *
+
+import decayLikelihood
+import plot_fit_results
+import bayes_analysis
+
+@contextlib.contextmanager
+def in_directory(directory):
+
+    # Save current directory
+    original_directory = os.getcwd()
+
+    # Go to the requested directory
+
+    os.chdir(directory)
+
+    # Execute whatever we need
+    yield
+
+    # Go back to original directory
+    os.chdir(original_directory)
+
+
+# Set up logger
+logging.basicConfig(format='%(asctime)s %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+class dumb():
+    pass
+
+
+args = dumb()
+
+args.directory = '/home/giacomov/science/jarred/minuit/bn090510016_bins'
+args.triggername = 'bn090510016'
+args.ft2file = '/home/giacomov/science/jarred/minuit/bn090510016_bins/bn090510016/gll_ft2_tr_bn090510016_v00.fit'
+args.gtburst_results = '/home/giacomov/science/jarred/minuit/bn090510016_bins/bn090510016_res.txt'
+args.decay_function = 'band'
+args.initial_values = '[2.5, -1.0, 1, -6]'
+args.boundaries = '[[1e-6, 30], [-5.0, -1e-6], [-3, 4], [-20, 20]]'
+args.redshift = 0.903
+args.n_walkers = 50
+args.burn_in = 20
+args.steps = 50
+
+# Read in gtburst results
+
+time_resolved_results = np.recfromtxt(args.gtburst_results, names=True)
+
+# Get start and stop of each bin and iterate through the results, loading the data
+
+with in_directory(args.directory):
+
+    likelihood_objects = []
+
+    start = time_resolved_results['tstart']  # for iterating through bin directories
+    stop = time_resolved_results['tstop']
+
+    for i, (bin_start, bin_stop) in enumerate(zip(start, stop)):
+
+        # Get the string corresponding to this time interval
+
+        time_interval_string = "%s-%s" % (str(bin_start), str(bin_stop))
+
+        logger.info("Loading interval %s (%s out of %s)" % (time_interval_string, i + 1, len(start)))
+
+        # Now gather ft1 file, exposure map, livetime cube and XML model
+
+        this_interval_dir = 'interval%s' % time_interval_string
+
+        # We need to move into the directory because the XML file has relative paths
+
+        with in_directory(this_interval_dir):
+
+            ft1_file = 'gll_ft1_tr_%s_v00_filt.fit' % args.triggername
+
+            exposure_map = 'gll_ft1_tr_%s_v00_filt_expomap.fit' % args.triggername
+
+            livetime_cube = 'gll_ft1_tr_%s_v00_filt_ltcube.fit' % args.triggername
+
+            xml_file = 'gll_ft1_tr_%s_v00_filt_likeRes.xml' % args.triggername
+
+            # Check that they exist
+            for this_file in [ft1_file, exposure_map, livetime_cube, xml_file]:
+
+                if not os.path.exists(this_file):
+
+                    raise IOError("File %s does not exist in directory %s" % (this_file, this_interval_dir))
+
+            # Create the likelihood object
+            # NOTE: I use absolute paths here because we will need to reach these files even when we will not be
+            # in the interval directory anymore
+
+            this_obs = UnbinnedObs(os.path.abspath(ft1_file),
+                                   os.path.abspath(args.ft2file),
+                                   expMap=os.path.abspath(exposure_map),
+                                   expCube=os.path.abspath(livetime_cube), irfs='CALDB')
+
+            this_like = UnbinnedAnalysis(this_obs, xml_file, optimizer='NewMinuit')
+
+        # Fix the galactic template to its best fit value to reduce the number of degrees of freedom
+
+        this_like['GalacticTemplate']['Spectrum'].params['Value'].parameter.setFree(False)
+
+        likelihood_objects.append(this_like)
+
+        logger.info("done")
+
+    logger.info("Loaded %s intervals" % len(likelihood_objects))
+
+# Now create the wrappers for the likelihood objects
+
+logger.info("Creating wrappers...")
+
+wrappers = []
+
+for likelihood_object in likelihood_objects:
+
+    wrappers.append(decayLikelihood.likeObjectWrapper(likelihood_object))
+
+logger.info("done")
+
+logger.info("Setting up decay likelihood analysis...")
+
+# Now instance the DecayLikelihood object
+
+decay_likelihood = decayLikelihood.DecayLikelihood(*wrappers)
+
+# Default is Band
+
+decay_function = decayLikelihood.DecayBand()
+
+if args.decay_function == 'band':
+
+    logger.info("Using DecayBand as decay function")
+
+    decay_function = decayLikelihood.DecayBand()  # declaring instance of DecayLikelihood using Band
+
+elif args.decay_function == 'crystalball':
+
+    logger.info("Using CrystalBall2 as decay function")
+
+    decay_function = decayLikelihood.CrystalBall2()
+
+decay_likelihood.setDecayFunction(decay_function)
+
+parameters_name = decay_function.getFreeParametersNames()
+
+logger.info("Setting up MINUIT fit...")
+
+# Generate lists from the input strings by using literal_eval(), which is much
+# safer than eval() since it cannot evaluate anything which is not a variable
+# declaration
+
+init_values = list(ast.literal_eval(args.initial_values))
+boundaries = list(ast.literal_eval(args.boundaries))
+
+# Use 10% of the value as initial error (i.e. delta used by Minuit)
+
+errors = map(lambda x:abs(x/10.0), init_values)
+
+# Now prepare the arguments for Minuit
+minuit_args = collections.OrderedDict()
+
+# Forced_parameters tells minuit the name of the variable in the function, which
+# are otherwise masqueraded by the use of *args
+minuit_args['forced_parameters'] = parameters_name
+
+# Use errordef = 0.5 which indicates that we are minimizing a -logLikelihood (and not chisq)
+minuit_args['errordef'] = 0.5
+
+for i, parameter_name in enumerate(parameters_name):
+
+    this_init = init_values[i]
+    this_boundaries = boundaries[i]
+    this_delta = errors[i]
+
+    logger.info("Parmameter %s: init_value = %s, boundaries = [%s,%s], delta = %s" % (parameter_name,
+                                                                                      this_init,
+                                                                                      this_boundaries[0],
+                                                                                      this_boundaries[1],
+                                                                                      this_delta))
+
+    minuit_args[parameter_name] = this_init
+    minuit_args['limit_%s' % parameter_name] = this_boundaries
+    minuit_args['error_%s' % parameter_name] = this_delta
+
+m = iminuit.Minuit(decay_likelihood.getLogLike, **minuit_args)
+
+logger.info("Performing MIGRAD minimization...")
+
+res = m.migrad()
+
+logger.info("done")
+
+filename = "%s_minuit_%s_results.txt" % (args.decay_function, args.triggername)
+
+logger.info("Saving results in %s..." % filename)
+
+best_fit_values = map(lambda x: x['value'], res[1])
+
+with open(filename,"w+") as f:
+    f.write("#")
+    f.write(" ".join(parameters_name))
+    f.write("\n")
+    f.write(" ".join(map(lambda x:str(x), best_fit_values)))
+    f.write("\n")
+
+logger.info("done")
+
+filename = "%s_minuit_%s_results.png" % (args.decay_function, args.triggername)
+
+logger.info("Plotting results in %s..." % filename)
+
+# Set the parameters to their best fit values
+for i, value in enumerate(best_fit_values):
+
+    decay_function.parameters[parameters_name[i]].setValue(value)
+
+fig = plot_fit_results.plot_fit_results(time_resolved_results,args.redshift, args.triggername, decay_function)
+
+fig.savefig(filename)
+
+logger.info("done")
+
+# Bayesian analysis
+
+logger.info("Setting up Bayesian analysis...")
+
+bayes = bayes_analysis.BayesianAnalysis(parameters_name, best_fit_values, decay_likelihood.getLogLike, boundaries)
+
+logger.info("done")
+
+logger.info("Collecting %s samples with %s walkers and a burn in of %s..." % (args.steps, args.n_walkers, args.burn_in))
+
+bayes.sample(args.n_walkers, args.burn_in, args.steps)
+
+logger.info("done")
+
+filename = "%s_%s_samples.txt" % (args.decay_function, args.triggername)
+
+logger.info("Saving samples in file %s..." % filename)
+
+bayes.save_samples(filename)
+
+logger.info("done")
+
+logger.info("Saving traces plots...")
+
+figs = bayes.plot_traces()
+
+for parameter_name, fig in zip(parameters_name, figs):
+
+    filename = "%s_%s_%s_trace.png" % (args.decay_function, args.triggername, parameter_name)
+
+    fig.savefig(filename)
+
+filename = "%s_%s_traces.png" % (args.decay_function, args.triggername)
+
+logger.info("Saving corner plot in file %s..." % filename)
+
+fig = bayes.corner_plot()
+
+fig.savefig(filename)
+
+# Sample
