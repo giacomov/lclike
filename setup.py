@@ -9,7 +9,7 @@ setup(
 
     packages=['lclike'],
 
-    scripts= ['lclike/lclike.py'],
+    scripts= ['lclike/lclike_batch.py'],
 
     #data_files=[('astromodels/data/functions', glob.glob('astromodels/data/functions/*.yaml'))],
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-# ~/develop/lclike/lclike/lclike.py --directory /home/giacomov/science/jarred/final_test/bn090510016_bins
+# ~/develop/lclike/lclike/lclike_batch.py --directory /home/giacomov/science/jarred/final_test/bn090510016_bins
 # --triggername bn090510016
 # --ft2file /home/giacomov/science/jarred/final_test/bn090510016_bins/bn090510016/gll_ft2_tr_bn090510016_v00.fit
 # --gtburst_results /home/giacomov/science/jarred/final_test/bn090510016_bins/bn090510016_res.txt
@@ -26,9 +26,9 @@ import numpy as np
 import iminuit
 from UnbinnedAnalysis import *
 
-import decayLikelihood
-import plot_fit_results
-import bayes_analysis
+from lclike import decayLikelihood
+from lclike import plot_fit_results
+from lclike import bayes_analysis
 
 
 @contextlib.contextmanager
