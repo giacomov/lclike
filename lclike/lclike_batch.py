@@ -30,6 +30,10 @@ from lclike import decayLikelihood
 from lclike import plot_fit_results
 from lclike import bayes_analysis
 
+# Select a non-interactive matplotlib backend
+import matplotlib
+matplotlib.use("Agg")
+
 
 @contextlib.contextmanager
 def in_directory(directory):
