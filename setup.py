@@ -2,7 +2,7 @@ __author__ = 'giacomov'
 
 #!/usr/bin/env python
 
-from setuptools import setup
+from distutils.core import setup
 
 setup(
     name="lclike",
