@@ -106,7 +106,7 @@ class DecayBand(DecayFunction):
         biasedFlux = lambda t: self.getDifferentialFlux(t) - (maxB * fraction)
 
         # Interpolate to make this quicker
-        interp_t = numpy.logspace(t0,6,1000)
+        interp_t = numpy.logspace(t0,6,100)
         interp_y = biasedFlux(interp_t)
 
         interpolator = scipy.interpolate.InterpolatedUnivariateSpline(interp_t, interp_y, k=1)
