@@ -123,7 +123,7 @@ class DecayBand(DecayFunction):
         # Make the integral distribution
 
         # Get the total integral
-        f100, err = scipy.integrate.quad(self.getDifferentialFlux, 1e-5, 86400.0, epsrel=1e-3)
+        f100, err = scipy.integrate.quad(self.getDifferentialFlux, 1e-5, 86400.0, epsrel=1e-2,epsabs=0)
 
         self.integralDistribution = lambda t: scipy.integrate.quad(self.getDifferentialFlux, 1e-5,
                                                                    t, epsrel=1e-2, epsabs=0)[0]
