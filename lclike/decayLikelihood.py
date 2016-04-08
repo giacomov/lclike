@@ -3,6 +3,7 @@ import math
 
 import scipy.integrate
 import scipy.optimize
+import scipy.interpolate
 import pyfits
 import numpy
 
@@ -128,7 +129,14 @@ class DecayBand(DecayFunction):
         self.integralDistribution = lambda t: scipy.integrate.quad(self.getDifferentialFlux, 1e-5,
                                                                    t, epsrel=1e-2, epsabs=0)[0]
 
-        self.int1 = lambda t: self.integralDistribution(t) - frac * f100
+        # Interpolate it to make the computation faster
+        interp_t = numpy.logspace(-5,numpy.log10(86400),100)
+
+        interp_y = map(self.integralDistribution, interp_t)
+
+        interpolator = scipy.interpolate.InterpolatedUnivariateSpline(interp_t, interp_y, k=1)
+
+        self.int1 = lambda t: interpolator(t) - frac * f100
 
         try:
 
