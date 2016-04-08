@@ -106,7 +106,7 @@ class DecayBand(DecayFunction):
 
         # Find root
         try:
-            characteristicTime = scipy.optimize.brentq(biasedFlux, t0, 1e6, xtol=1e-3)
+            characteristicTime = scipy.optimize.brentq(biasedFlux, t0, 1e6, xtol=1e-3, rtol=1e-4)
 
         except:
 
