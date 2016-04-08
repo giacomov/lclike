@@ -33,6 +33,15 @@ class DecayFunction(object):
         pass
 
 
+def log_interp1d(xx, yy, **kwargs):
+
+    logx = numpy.log10(xx)
+    logy = numpy.log10(yy)
+    lin_interp = scipy.interpolate.InterpolatedUnivariateSpline(logx, logy, **kwargs)
+    log_interp = lambda zz: numpy.power(10.0, lin_interp(numpy.log10(zz)))
+
+    return log_interp
+
 class DecayBand(DecayFunction):
     def __init__(self):
 
@@ -103,13 +112,13 @@ class DecayBand(DecayFunction):
 
         maxB = self.getDifferentialFlux(t0)
 
-        biasedFlux = lambda t: self.getDifferentialFlux(t) - (maxB * fraction)
+        #biasedFlux = lambda t: self.getDifferentialFlux(t) - (maxB * fraction)
 
         # Interpolate to make this quicker
-        interp_t = numpy.logspace(t0,6,100)
-        interp_y = biasedFlux(interp_t)
+        interp_t = numpy.logspace(t0,6.1,1000)
+        interp_y = self.getDifferentialFlux(interp_t) - (maxB * fraction)
 
-        interpolator = scipy.interpolate.InterpolatedUnivariateSpline(interp_t, interp_y, k=1)
+        interpolator = log_interp1d(interp_t, interp_y, k=1)
 
         # Find root
         try:
