@@ -105,9 +105,15 @@ class DecayBand(DecayFunction):
 
         biasedFlux = lambda t: self.getDifferentialFlux(t) - (maxB * fraction)
 
+        # Interpolate to make this quicker
+        interp_t = numpy.logspace(t0,6,1000)
+        interp_y = biasedFlux(interp_t)
+
+        interpolator = scipy.interpolate.InterpolatedUnivariateSpline(interp_t, interp_y, k=1)
+
         # Find root
         try:
-            characteristicTime = scipy.optimize.brentq(biasedFlux, t0, 1e6, xtol=1e-3, rtol=1e-4)
+            characteristicTime = scipy.optimize.brentq(interpolator, t0, 1e6, xtol=1e-3, rtol=1e-4)
 
         except:
 
@@ -121,6 +127,18 @@ class DecayBand(DecayFunction):
 
         frac = (100.0 - float(what)) / 2.0 / 100.0
 
+        # Make an interpolated version of the model (way faster than integrating directly)
+
+        interp_t = numpy.logspace(-5,numpy.log10(86400),1000)
+        interp_y = self.getDifferentialFlux(interp_t)
+
+        # Interpolate in the log space
+        log_log_interpolator = scipy.interpolate.InterpolatedUnivariateSpline(numpy.log10(interp_t),
+                                                                              numpy.log10(interp_y),
+                                                                              k=1)
+
+
+
         # Make the integral distribution
 
         # Get the total integral
@@ -129,14 +147,7 @@ class DecayBand(DecayFunction):
         self.integralDistribution = lambda t: scipy.integrate.quad(self.getDifferentialFlux, 1e-5,
                                                                    t, epsrel=1e-2, epsabs=0)[0]
 
-        # Interpolate it to make the computation faster
-        interp_t = numpy.logspace(-5,numpy.log10(86400),100)
-
-        interp_y = map(self.integralDistribution, interp_t)
-
-        interpolator = scipy.interpolate.InterpolatedUnivariateSpline(interp_t, interp_y, k=1)
-
-        self.int1 = lambda t: interpolator(t) - frac * f100
+        self.int1 = lambda t: self.integralDistribution(t) - frac * f100
 
         try:
 
