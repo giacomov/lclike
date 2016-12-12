@@ -9,6 +9,7 @@ import corner
 
 
 class BayesianAnalysis(object):
+
     def __init__(self, parameter_names, best_fit_values, loglike, boundaries):
 
         self.parameter_names = parameter_names

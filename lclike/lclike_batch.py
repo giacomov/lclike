@@ -76,7 +76,8 @@ mycmd.add_argument('--n_walkers', help='Number of walkers for the Bayesian Analy
 mycmd.add_argument('--burn_in', help='Number of samples to throw away as part of the burn in', type=int, required=True)
 mycmd.add_argument('--steps', help='Number of samples *per walker* to take from the posterior distribution', type=int,
                    required=True)
-
+mycmd.add_argument('--minimum_time', help='Use only data after this time (optional)', type=float,
+                   required=False, default=None)
 
 # spacecraft data should be in same location as the analysis files############################################################################
 
@@ -102,16 +103,28 @@ if __name__ == "__main__":
 
     time_resolved_results = np.recfromtxt(args.gtburst_results, names=True)
 
+    # if args.minimum_time is not None:
+    #
+    #     idx = time_resolved_results['tstop'] > args.minimum_time
+    #
+    #     time_resolved_results = time_resolved_results[idx]
+
+    start = time_resolved_results['tstart']  # for iterating through bin directories
+    stop = time_resolved_results['tstop']
+
     # Get start and stop of each bin and iterate through the results, loading the data
 
     with in_directory(args.directory):
 
         likelihood_objects = []
 
-        start = time_resolved_results['tstart']  # for iterating through bin directories
-        stop = time_resolved_results['tstop']
-
         for i, (bin_start, bin_stop) in enumerate(zip(start, stop)):
+
+            if args.minimum_time is not None:
+
+                if bin_stop < args.minimum_time:
+
+                    continue
 
             # Get the string corresponding to this time interval
 
@@ -139,6 +152,7 @@ if __name__ == "__main__":
                 for this_file in [ft1_file, exposure_map, livetime_cube, xml_file]:
 
                     if not os.path.exists(this_file):
+
                         raise IOError("File %s does not exist in directory %s" % (this_file, this_interval_dir))
 
                 # Create the likelihood object
@@ -150,7 +164,7 @@ if __name__ == "__main__":
                                        expMap=os.path.abspath(exposure_map),
                                        expCube=os.path.abspath(livetime_cube), irfs='CALDB')
 
-                this_like = UnbinnedAnalysis(this_obs, xml_file, optimizer='NewMinuit')
+                this_like = UnbinnedAnalysis(this_obs, xml_file, optimizer='Minuit')
 
             # Fix the galactic template to its best fit value to reduce the number of degrees of freedom
 
@@ -169,6 +183,7 @@ if __name__ == "__main__":
     wrappers = []
 
     for likelihood_object in likelihood_objects:
+
         wrappers.append(decayLikelihood.likeObjectWrapper(likelihood_object))
 
     logger.info("done")
@@ -194,6 +209,24 @@ if __name__ == "__main__":
         logger.info("Using CrystalBall2 as decay function")
 
         decay_function = decayLikelihood.CrystalBall2()
+
+    elif args.decay_function.lower() == 'willingale':
+
+        logger.info("Using Willingale as decay function")
+
+        decay_function = decayLikelihood.Willingale()
+
+    elif args.decay_function.lower() == 'willingale2':
+
+        logger.info("Using Willingale2 as decay function")
+
+        decay_function = decayLikelihood.Willingale2()
+
+    elif args.decay_function.lower() == 'powerlaw':
+
+        logger.info("Using Powerlaw as decay function")
+
+        decay_function = decayLikelihood.DecayPowerlaw()
 
     decay_likelihood.setDecayFunction(decay_function)
 
@@ -223,6 +256,7 @@ if __name__ == "__main__":
     minuit_args['errordef'] = 0.5
 
     for i, parameter_name in enumerate(parameters_name):
+
         this_init = init_values[i]
         this_boundaries = boundaries[i]
         this_delta = errors[i]
@@ -245,6 +279,17 @@ if __name__ == "__main__":
 
     logger.info("done")
 
+    logger.info("Performing HESSE ...")
+
+    _ = m.hesse()
+
+    logger.info("done")
+
+    # Activate optimization
+    decay_likelihood.activate_profiling()
+
+    res = m.migrad()
+
     filename = "%s_minuit_%s_results.txt" % (args.decay_function, args.triggername)
 
     logger.info("Saving results in %s..." % filename)
@@ -266,6 +311,7 @@ if __name__ == "__main__":
 
     # Set the parameters to their best fit values
     for i, value in enumerate(best_fit_values):
+
         decay_function.parameters[parameters_name[i]].setValue(value)
 
     fig = plot_fit_results.plot_fit_results(time_resolved_results, args.redshift, args.triggername, decay_function)
@@ -274,44 +320,46 @@ if __name__ == "__main__":
 
     logger.info("done")
 
-    # Bayesian analysis
+    if args.steps > 0:
 
-    logger.info("Setting up Bayesian analysis...")
+        # Bayesian analysis
 
-    bayes = bayes_analysis.BayesianAnalysis(parameters_name, best_fit_values, decay_likelihood.getLogLike, boundaries)
+        logger.info("Setting up Bayesian analysis...")
 
-    logger.info("done")
+        bayes = bayes_analysis.BayesianAnalysis(parameters_name, best_fit_values, decay_likelihood.getLogLike, boundaries)
 
-    logger.info(
-        "Collecting %s samples with %s walkers and a burn in of %s..." % (args.steps, args.n_walkers, args.burn_in))
+        logger.info("done")
 
-    bayes.sample(args.n_walkers, args.burn_in, args.steps)
+        logger.info(
+            "Collecting %s samples with %s walkers and a burn in of %s..." % (args.steps, args.n_walkers, args.burn_in))
 
-    logger.info("done")
+        bayes.sample(args.n_walkers, args.burn_in, args.steps)
 
-    filename = "%s_%s_samples.txt" % (args.decay_function, args.triggername)
+        logger.info("done")
 
-    logger.info("Saving samples in file %s..." % filename)
+        filename = "%s_%s_samples.txt" % (args.decay_function, args.triggername)
 
-    bayes.save_samples(filename)
+        logger.info("Saving samples in file %s..." % filename)
 
-    logger.info("done")
+        bayes.save_samples(filename)
 
-    logger.info("Saving traces plots...")
+        logger.info("done")
 
-    figs = bayes.plot_traces()
+        logger.info("Saving traces plots...")
 
-    for parameter_name, fig in zip(parameters_name, figs):
-        filename = "%s_%s_%s_trace.png" % (args.decay_function, args.triggername, parameter_name)
+        figs = bayes.plot_traces()
+
+        for parameter_name, fig in zip(parameters_name, figs):
+            filename = "%s_%s_%s_trace.png" % (args.decay_function, args.triggername, parameter_name)
+
+            fig.savefig(filename)
+
+        filename = "%s_%s_traces.png" % (args.decay_function, args.triggername)
+
+        logger.info("Saving corner plot in file %s..." % filename)
+
+        fig = bayes.corner_plot()
 
         fig.savefig(filename)
-
-    filename = "%s_%s_traces.png" % (args.decay_function, args.triggername)
-
-    logger.info("Saving corner plot in file %s..." % filename)
-
-    fig = bayes.corner_plot()
-
-    fig.savefig(filename)
 
     # Sample

@@ -33,6 +33,135 @@ class DecayFunction(object):
         pass
 
 
+def willingale_function(t, alpha, tau, T, F):
+
+    out = numpy.zeros(t.flatten().shape[0])
+    idx = (t < T)
+    nidx = ~idx
+
+    out[idx] = numpy.exp(alpha * (1 - t[idx] / T) - tau / t[idx])
+
+    out[nidx] = numpy.power(t[nidx] / T, -alpha) * numpy.exp(-tau / T)
+
+    # This fixes nan(s) and inf values, converting them respectively to zeros and large numbers
+    out = numpy.nan_to_num(F * out)
+    if (out.shape[0] == 1):
+        return max(0, out[0])
+    else:
+        return numpy.maximum(out, 0)
+
+class Willingale(DecayFunction):
+
+    def __init__(self):
+
+        self.parameters = collections.OrderedDict()
+
+        self.parameters['alpha'] = Parameter('alpha', 1, 0, 6, 0.1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logTau'] = Parameter('logTau', 0, -3, 2, 1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logT'] = Parameter('logT', 1.0, -2, 3, 0.1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logF'] = Parameter('logF', -5.0, -10, 10, 0.1, fixed=False, nuisance=False, dataset=None,
+                                            normalization=False)
+
+    def getDifferentialFlux(self, tt):
+
+        # tt can be both a scalar or an array
+
+        t = numpy.array(tt, ndmin=1, copy=False)
+
+        alpha = self.parameters['alpha'].value
+        tau = 10**self.parameters['logTau'].value
+        T = pow(10, self.parameters['logT'].value)
+        F = pow(10, self.parameters['logF'].value)
+
+        return willingale_function(t, alpha, tau, T, F)
+
+
+    def getFlux(self, tmin, tmax):
+
+        # Integrate the differential flux between tmin and tmax
+
+        tt = numpy.linspace(tmin, tmax, 51)
+        ss = self.getDifferentialFlux(tt)
+
+        res = scipy.integrate.simps(ss, tt)
+        #res, err = scipy.integrate.quad( self.getDifferentialFlux, tmin, tmax, epsrel=1e-2,epsabs=0)
+
+        return res / (tmax - tmin)
+
+    def getPeakTimeAndFlux(self):
+
+        raise NotImplementedError("I have not implemented this")
+
+    def getCharacteristicTime(self, fraction=0.367879):
+
+        raise NotImplementedError("I have not implemented this")
+
+    def getTsomething(self, what=90):
+
+        raise NotImplementedError("I have not implemented this")
+
+
+class Willingale2(DecayFunction):
+
+    def __init__(self):
+
+        self.parameters = collections.OrderedDict()
+
+        self.parameters['alpha1'] = Parameter('alpha1', 1, 0, 6, 0.1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logTau1'] = Parameter('logTau1', 0, -3, 2, 1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logT1'] = Parameter('logT1', 1.0, -2, 3, 0.1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logF1'] = Parameter('logF1', -5.0, -10, 10, 0.1, fixed=False, nuisance=False, dataset=None,
+                                            normalization=False)
+        self.parameters['alpha2'] = Parameter('alpha2', 1, 0, 6, 0.1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logTau2'] = Parameter('logTau2', 0, -3, 2, 1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logT2'] = Parameter('logT2', 1.0, -2, 3, 0.1, fixed=False, nuisance=False, dataset=None)
+        self.parameters['logF2'] = Parameter('logF2', -5.0, -10, 10, 0.1, fixed=False, nuisance=False, dataset=None,
+                                            normalization=False)
+
+    def getDifferentialFlux(self, tt):
+
+        # tt can be both a scalar or an array
+
+        t = numpy.array(tt, ndmin=1, copy=False)
+
+        alpha1 = self.parameters['alpha1'].value
+        tau1 = 10**self.parameters['logTau1'].value
+        T1 = pow(10, self.parameters['logT1'].value)
+        F1 = pow(10, self.parameters['logF1'].value)
+
+        alpha2 = self.parameters['alpha2'].value
+        tau2 = 10 ** self.parameters['logTau2'].value
+        T2 = pow(10, self.parameters['logT2'].value)
+        F2 = pow(10, self.parameters['logF2'].value)
+
+        return willingale_function(t, alpha1, tau1, T1, F1) + willingale_function(t, alpha2, tau2, T2, F2)
+
+    def getFlux(self, tmin, tmax):
+
+        # Integrate the differential flux between tmin and tmax
+
+        tt = numpy.linspace(tmin, tmax, 51)
+        ss = self.getDifferentialFlux(tt)
+
+        res = scipy.integrate.simps(ss, tt)
+        #res, err = scipy.integrate.quad( self.getDifferentialFlux, tmin, tmax, epsrel=1e-2,epsabs=0)
+
+        return res / (tmax - tmin)
+
+    def getPeakTimeAndFlux(self):
+
+        raise NotImplementedError("I have not implemented this")
+
+    def getCharacteristicTime(self, fraction=0.367879):
+
+        raise NotImplementedError("I have not implemented this")
+
+    def getTsomething(self, what=90):
+
+        raise NotImplementedError("I have not implemented this")
+
+
+
 class DecayBand(DecayFunction):
     def __init__(self):
 
@@ -102,7 +231,7 @@ class DecayBand(DecayFunction):
         t0 = pow(10, self.parameters['logT0'].value)
 
         maxB = self.getDifferentialFlux(t0)
-        
+
         biasedFlux = lambda t: self.getDifferentialFlux(t) - (maxB * fraction)
 
         # Find root
@@ -360,6 +489,10 @@ class DecayPowerlaw(DecayFunction):
 
         return (integral(tmax) - integral(tmin)) / (tmax - tmin)
 
+    def getDifferentialFlux(self, t):
+
+        return self.parameters['norm'].getValue() * t**(-self.parameters['decayIndex'].getValue())
+
 
 class DecayPowerlaw2(DecayFunction):
     '''
@@ -437,10 +570,17 @@ class likeObjectWrapper(object):
         self.likeObject[self.srcName]['Spectrum'].params['Integral'].parameter.setAlwaysFixed(True)
 
         # Set the photon index to -2
-        self.likeObject[self.srcName]['Spectrum'].params['Index'] = -2.0
+        #self.likeObject[self.srcName]['Spectrum'].params['Index'] = -2.0
+
+        # Fix isotropic templates
+        self.likeObject['IsotropicTemplate']['Spectrum'].params['Normalization'].parameter.setAlwaysFixed(True)
 
         (self.fluxMinBound,
          self.fluxMaxBound) = self.likeObject[self.srcName]['Spectrum'].params['Integral'].parameter.getBounds()
+
+        self._initial_flux_value = self.likeObject[self.srcName].src.spectrum().parameter('Integral').getValue()
+
+        self._optimize = False
 
     def isCrossingGTI(self):
         return self.crossesGTI
@@ -500,7 +640,7 @@ class likeObjectWrapper(object):
 
             value = self.fluxMinBound * 1.001
 
-        elif (flux / scale >= self.fluxMaxBound * scale):
+        elif flux >= self.fluxMaxBound:
 
             # print("Flux is %s, maximum is %s" %(flux, self.fluxMaxBound))
 
@@ -510,11 +650,25 @@ class likeObjectWrapper(object):
 
             value = flux
 
-        self.likeObject[self.srcName]['Spectrum']['Integral'] = value / scale
+        #print("setting flux to %s (best fit value: %s)" % (value / scale, self._initial_flux_value))
+
+        self.likeObject[self.srcName].src.spectrum().parameter('Integral').setValue(value / scale)
+
+        # self.likeObject[self.srcName]['Spectrum']['Integral'] = value #/ scale
 
     def getLogLike(self):
 
         self.likeObject.syncSrcParams()
+
+        if self._optimize:
+
+            try:
+
+                self.likeObject.optimize(0)
+
+            except:
+
+                return INVALID
 
         logl = self.likeObject.logLike.value()
 
@@ -523,6 +677,7 @@ class likeObjectWrapper(object):
 
 
 class DecayLikelihood(object):
+
     def __init__(self, *likeObjects):
 
         self.likeObjects = list(likeObjects)
@@ -530,6 +685,17 @@ class DecayLikelihood(object):
     def setDecayFunction(self, function):
 
         self.decayFunction = function
+
+    def activate_profiling(self):
+
+        for likeObj in self.likeObjects:
+
+            likeObj._optimize = True
+
+    def deactivate_profiling(self):
+
+        for likeObj in self.likeObjects:
+            likeObj._optimize = False
 
     def getLogLike(self, *values):
 
@@ -545,6 +711,7 @@ class DecayLikelihood(object):
                 fluxes = []
 
                 for t1, t2 in zip(likeObj.tmin, likeObj.tmax):
+
                     fluxes.append(self.decayFunction.getFlux(t1, t2))
 
                 # Average them
@@ -570,4 +737,8 @@ class DecayLikelihood(object):
 
             likeValues.append(logl)
 
-        return numpy.sum(likeValues) * (-1)
+        minus_log_like = numpy.sum(likeValues) * (-1)
+
+        #print("-log(like) is %s for %s" % (minus_log_like, values))
+
+        return minus_log_like
