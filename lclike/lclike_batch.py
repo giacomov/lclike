@@ -252,6 +252,7 @@ if __name__ == "__main__":
             logger.info("Fixing parameter %i (starting from 0)" % (i))
 
             # Parameter need to be fixed
+            decay_function.parameters.values()[i].value = init_values[i]
             decay_function.parameters.values()[i].fix()
 
         else:
