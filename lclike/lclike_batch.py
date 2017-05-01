@@ -228,8 +228,19 @@ if __name__ == "__main__":
 
         decay_function = decayLikelihood.DecayPowerlaw()
 
+    # Generate lists from the input strings by using literal_eval(), which is much
+    # safer than eval() since it cannot evaluate anything which is not a variable
+    # declaration
+
+    init_values = list(ast.literal_eval(args.initial_values))
+    boundaries = list(ast.literal_eval(args.boundaries))
+
+    # Use 10% of the value as initial error (i.e. delta used by Minuit)
+
+    errors = map(lambda x: abs(x / 10.0), init_values)
+
     # Fix all parameters for which the lower and the upper bound are equal
-    for i, bounds in enumerate(args.boundaries):
+    for i, bounds in enumerate(boundaries):
 
         if bounds[0] == bounds[1]:
 
@@ -243,17 +254,6 @@ if __name__ == "__main__":
     parameters_name = decay_function.getFreeParametersNames()
 
     logger.info("Setting up MINUIT fit...")
-
-    # Generate lists from the input strings by using literal_eval(), which is much
-    # safer than eval() since it cannot evaluate anything which is not a variable
-    # declaration
-
-    init_values = list(ast.literal_eval(args.initial_values))
-    boundaries = list(ast.literal_eval(args.boundaries))
-
-    # Use 10% of the value as initial error (i.e. delta used by Minuit)
-
-    errors = map(lambda x: abs(x / 10.0), init_values)
 
     # Now prepare the arguments for Minuit
     minuit_args = collections.OrderedDict()
