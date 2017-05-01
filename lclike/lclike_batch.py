@@ -228,6 +228,16 @@ if __name__ == "__main__":
 
         decay_function = decayLikelihood.DecayPowerlaw()
 
+    # Fix all parameters for which the lower and the upper bound are equal
+    for i, bounds in enumerate(args.boundaries):
+
+        if bounds[0] == bounds[1]:
+
+            logger.info("Fixing parameter %i (starting from 0)" % (i))
+
+            # Parameter need to be fixed
+            decay_function.parameters.values()[i].fix()
+
     decay_likelihood.setDecayFunction(decay_function)
 
     parameters_name = decay_function.getFreeParametersNames()
@@ -261,7 +271,7 @@ if __name__ == "__main__":
         this_boundaries = boundaries[i]
         this_delta = errors[i]
 
-        logger.info("Parmameter %s: init_value = %s, boundaries = [%s,%s], delta = %s" % (parameter_name,
+        logger.info("Parameter %s: init_value = %s, boundaries = [%s,%s], delta = %s" % (parameter_name,
                                                                                           this_init,
                                                                                           this_boundaries[0],
                                                                                           this_boundaries[1],
