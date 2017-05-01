@@ -74,21 +74,9 @@ class Willingale(DecayFunction):
         T = pow(10, self.parameters['logT'].value)
         F = pow(10, self.parameters['logF'].value)
 
-        with warnings.catch_warnings():
+        value = willingale_function(t, alpha, tau, T, F)
 
-            warnings.simplefilter("error")
-
-            try:
-
-                value = willingale_function(t, alpha, tau, T, F)
-
-            except:
-
-                import pdb; pdb.set_trace()
-
-            else:
-
-                return value
+        return value
 
 
     def getFlux(self, tmin, tmax):

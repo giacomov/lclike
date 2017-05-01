@@ -76,8 +76,6 @@ mycmd.add_argument('--n_walkers', help='Number of walkers for the Bayesian Analy
 mycmd.add_argument('--burn_in', help='Number of samples to throw away as part of the burn in', type=int, required=True)
 mycmd.add_argument('--steps', help='Number of samples *per walker* to take from the posterior distribution', type=int,
                    required=True)
-mycmd.add_argument('--minimum_time', help='Use only data after this time (optional)', type=float,
-                   required=False, default=None)
 
 # spacecraft data should be in same location as the analysis files############################################################################
 
@@ -101,13 +99,18 @@ if __name__ == "__main__":
 
     # Read in gtburst results
 
-    time_resolved_results = np.recfromtxt(args.gtburst_results, names=True)
+    # FIx the n.a. if there is any
+    with open("__temp_results.txt", "w+") as outf:
 
-    # if args.minimum_time is not None:
-    #
-    #     idx = time_resolved_results['tstop'] > args.minimum_time
-    #
-    #     time_resolved_results = time_resolved_results[idx]
+        with open(args.gtburst_results) as f:
+
+            for line in f.readlines():
+
+                outf.write(line.replace("n.a.", "0").replace("(fixed)",""))
+
+    time_resolved_results = np.recfromtxt("__temp_results.txt", names=True)
+
+    os.remove("__temp_results.txt")
 
     start = time_resolved_results['tstart']  # for iterating through bin directories
     stop = time_resolved_results['tstop']
@@ -119,12 +122,6 @@ if __name__ == "__main__":
         likelihood_objects = []
 
         for i, (bin_start, bin_stop) in enumerate(zip(start, stop)):
-
-            if args.minimum_time is not None:
-
-                if bin_stop < args.minimum_time:
-
-                    continue
 
             # Get the string corresponding to this time interval
 
