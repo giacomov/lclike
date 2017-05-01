@@ -240,6 +240,11 @@ if __name__ == "__main__":
     errors = map(lambda x: abs(x / 10.0), init_values)
 
     # Fix all parameters for which the lower and the upper bound are equal
+
+    new_initial_values = []
+    new_boundaries = []
+    new_errors = []
+
     for i, bounds in enumerate(boundaries):
 
         if bounds[0] == bounds[1]:
@@ -248,6 +253,12 @@ if __name__ == "__main__":
 
             # Parameter need to be fixed
             decay_function.parameters.values()[i].fix()
+
+        else:
+
+            new_initial_values.append(init_values[i])
+            new_boundaries.append(boundaries[i])
+            new_errors.append(errors[i])
 
     decay_likelihood.setDecayFunction(decay_function)
 
@@ -267,9 +278,9 @@ if __name__ == "__main__":
 
     for i, parameter_name in enumerate(parameters_name):
 
-        this_init = init_values[i]
-        this_boundaries = boundaries[i]
-        this_delta = errors[i]
+        this_init = new_initial_values[i]
+        this_boundaries = new_boundaries[i]
+        this_delta = new_errors[i]
 
         logger.info("Parameter %s: init_value = %s, boundaries = [%s,%s], delta = %s" % (parameter_name,
                                                                                           this_init,
@@ -336,7 +347,8 @@ if __name__ == "__main__":
 
         logger.info("Setting up Bayesian analysis...")
 
-        bayes = bayes_analysis.BayesianAnalysis(parameters_name, best_fit_values, decay_likelihood.getLogLike, boundaries)
+        bayes = bayes_analysis.BayesianAnalysis(parameters_name, best_fit_values, decay_likelihood.getLogLike,
+                                                new_boundaries)
 
         logger.info("done")
 
