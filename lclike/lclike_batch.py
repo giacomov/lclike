@@ -297,7 +297,7 @@ if __name__ == "__main__":
 
     logger.info("Performing MIGRAD minimization...")
 
-    res = m.migrad(precision=0.01)
+    res = m.migrad()
 
     logger.info("done")
 
@@ -307,7 +307,7 @@ if __name__ == "__main__":
 
     logger.info("done")
 
-    _ = m.migrad(resume=False, precision=0.01)
+    _ = m.migrad(resume=False)
 
     logger.info("Performing MINOS ...")
 
