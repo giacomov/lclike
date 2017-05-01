@@ -297,7 +297,7 @@ if __name__ == "__main__":
 
     logger.info("Performing MIGRAD minimization...")
 
-    res = m.migrad()
+    res = m.migrad(precision=0.01)
 
     logger.info("done")
 
@@ -307,18 +307,13 @@ if __name__ == "__main__":
 
     logger.info("done")
 
-    _ = m.migrad()
+    _ = m.migrad(resume=False, precision=0.01)
 
     logger.info("Performing MINOS ...")
 
     _ = m.minos()
 
     logger.info("done")
-
-    # Activate optimization
-    #decay_likelihood.activate_profiling()
-
-    res = m.migrad()
 
     filename = "%s_minuit_%s_results.txt" % (args.decay_function, args.triggername)
 
