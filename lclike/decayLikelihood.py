@@ -6,6 +6,7 @@ import scipy.optimize
 import scipy.interpolate
 import pyfits
 import numpy
+import warnings
 
 from Parameter import Parameter
 import ggrb
@@ -73,7 +74,21 @@ class Willingale(DecayFunction):
         T = pow(10, self.parameters['logT'].value)
         F = pow(10, self.parameters['logF'].value)
 
-        return willingale_function(t, alpha, tau, T, F)
+        with warnings.catch_warnings():
+
+            warnings.simplefilter("error")
+
+            try:
+
+                value = willingale_function(t, alpha, tau, T, F)
+
+            except:
+
+                import pdb; pdb.set_trace()
+
+            else:
+
+                return value
 
 
     def getFlux(self, tmin, tmax):
