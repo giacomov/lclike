@@ -307,6 +307,12 @@ if __name__ == "__main__":
 
     logger.info("done")
 
+    logger.info("Performing MINOS ...")
+
+    _ = m.minos()
+
+    logger.info("done")
+
     # Activate optimization
     decay_likelihood.activate_profiling()
 
