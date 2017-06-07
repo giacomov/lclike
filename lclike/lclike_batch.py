@@ -34,6 +34,26 @@ from lclike import bayes_analysis
 import matplotlib
 matplotlib.use("Agg")
 
+import ROOT
+
+class FuncWrapper(ROOT.TPyMultiGenFunction):
+
+    def __init__(self, function, dimensions):
+
+        ROOT.TPyMultiGenFunction.__init__(self, self)
+        self.function = function
+        self.dimensions = int(dimensions)
+
+    def NDim(self):
+        return self.dimensions
+
+    def DoEval(self, args):
+
+        new_args = map(lambda i:args[i],range(self.dimensions))
+
+        return self.function(*new_args)
+
+
 
 @contextlib.contextmanager
 def in_directory(directory):
@@ -232,19 +252,14 @@ if __name__ == "__main__":
     init_values = list(ast.literal_eval(args.initial_values))
     boundaries = list(ast.literal_eval(args.boundaries))
 
-    # Use 10% of the value as initial error (i.e. delta used by Minuit)
-
-    errors = map(lambda x: abs(x / 10.0), init_values)
-
     # Fix all parameters for which the lower and the upper bound are equal
 
     new_initial_values = []
     new_boundaries = []
-    new_errors = []
 
     for i, bounds in enumerate(boundaries):
 
-        if bounds[0] == bounds[1]:
+        if bounds[0] == bounds[1] and bounds[0]!='none':
 
             logger.info("Fixing parameter %i (starting from 0)" % (i))
 
@@ -256,67 +271,124 @@ if __name__ == "__main__":
 
             new_initial_values.append(init_values[i])
             new_boundaries.append(boundaries[i])
-            new_errors.append(errors[i])
+            
+            logger.info("parameter %i starts from %s with boundaries %s: " % (i, new_initial_values[-1], new_boundaries[-1]))
 
     decay_likelihood.setDecayFunction(decay_function)
 
     parameters_name = decay_function.getFreeParametersNames()
 
     logger.info("Setting up MINUIT fit...")
-
-    # Now prepare the arguments for Minuit
-    minuit_args = collections.OrderedDict()
-
-    # Forced_parameters tells minuit the name of the variable in the function, which
-    # are otherwise masqueraded by the use of *args
-    minuit_args['forced_parameters'] = parameters_name
-
-    # Use errordef = 0.5 which indicates that we are minimizing a -logLikelihood (and not chisq)
-    minuit_args['errordef'] = 0.5
-
+    
+    functor = FuncWrapper(decay_likelihood.getLogLike, len(parameters_name))
+    
+    minimizer = ROOT.Math.Factory.CreateMinimizer("Minuit2", "Minimize")
+    minimizer.Clear()
+    minimizer.SetMaxFunctionCalls(1000)
+    minimizer.SetTolerance(0.1)
+    minimizer.SetPrintLevel(1)
+    minimizer.SetErrorDef(0.5)
+    
+    minimizer.SetFunction(functor)
+    
     for i, parameter_name in enumerate(parameters_name):
-
-        this_init = new_initial_values[i]
-        this_boundaries = new_boundaries[i]
-        this_delta = new_errors[i]
-
-        logger.info("Parameter %s: init_value = %s, boundaries = [%s,%s], delta = %s" % (parameter_name,
-                                                                                          this_init,
-                                                                                          this_boundaries[0],
-                                                                                          this_boundaries[1],
-                                                                                          this_delta))
-
-        minuit_args[parameter_name] = this_init
-        minuit_args['limit_%s' % parameter_name] = this_boundaries
-        minuit_args['error_%s' % parameter_name] = this_delta
-
-    m = iminuit.Minuit(decay_likelihood.getLogLike, **minuit_args)
-
-    logger.info("Performing MIGRAD minimization...")
-
-    res = m.migrad()
-
-    logger.info("done")
-
-    logger.info("Performing HESSE ...")
-
-    _ = m.hesse()
-
-    logger.info("done")
-
-    _ = m.migrad(resume=False)
-
-    logger.info("Performing MINOS ...")
-
-    _ = m.minos()
-
-    logger.info("done")
+        
+        if new_boundaries[i][0]=='none' and new_boundaries[i][1]=='none':
+            
+            minimizer.SetVariable(i, parameter_name, new_initial_values[i],
+                                  abs(new_initial_values[i])/10.0)
+        
+        else:
+        
+            minimizer.SetLimitedVariable(i, parameter_name,
+                                         new_initial_values[i],
+                                         abs(new_initial_values[i])/10.0,
+                                         new_boundaries[i][0],
+                                         new_boundaries[i][1])
+    
+    minimizer.Minimize()
+    
+    #minimizer.Hesse()
+    
+    #minimizer.Minimize()
+    
+    best_fit_values = np.array(map(lambda x: x[0], zip(minimizer.X(), range(len(parameters_name)))))
+    
+#   ## Get MINOS errors
+#    minus_errors = []
+#    plus_errors = []
+#    
+#    for i, parameter_name in enumerate(parameters_name):
+#        
+#        eminus  = ROOT.Double ( 0 ) 
+#        eplus = ROOT.Double ( 0 ) 
+#        
+#        minimizer.GetMinosError(i, eminus, eplus)
+#        
+#        print("%s: %s +%s" % (parameter_name, eminus, eplus))
+    
+#    # Now prepare the arguments for Minuit
+#    minuit_args = collections.OrderedDict()
+#
+#    # Forced_parameters tells minuit the name of the variable in the function, which
+#    # are otherwise masqueraded by the use of *args
+#    minuit_args['forced_parameters'] = parameters_name
+#    
+#    minuit_args['pedantic'] = True
+#
+#    # Use errordef = 0.5 which indicates that we are minimizing a -logLikelihood (and not chisq)
+#    minuit_args['errordef'] = 0.5
+#
+#    for i, parameter_name in enumerate(parameters_name):
+#
+#        this_init = new_initial_values[i]
+#        this_boundaries = new_boundaries[i]
+#        this_delta = this_init
+#
+#        logger.info("Parameter %s: init_value = %s, boundaries = [%s,%s], delta = %s" % (parameter_name,
+#                                                                                          this_init,
+#                                                                                          this_boundaries[0],
+#                                                                                          this_boundaries[1],
+#                                                                                          this_delta))
+#
+#        minuit_args[parameter_name] = this_init
+#        
+#        if this_boundaries[0]=='none':
+#            
+#            this_boundaries[0] = None
+#        
+#        if this_boundaries[1]=='none':
+#            
+#            this_boundaries[1] = None
+#        
+#        minuit_args['limit_%s' % parameter_name] = this_boundaries
+#        minuit_args['error_%s' % parameter_name] = this_delta
+    
+#    m = iminuit.Minuit(decay_likelihood.getLogLike, **minuit_args)
+#    
+#    #m.tol = 100
+#    
+#    logger.info("Performing MIGRAD minimization...")
+#    
+#    for i in range(10):
+#    
+#         res = m.migrad(resume=False, ncall=10000)
+#    
+#    logger.info("done")
+#
+#    logger.info("Performing MINOS ...")
+#    
+#    #m.tol = 1e-3
+#    
+#    _ = m.minos(maxcall=10000)
+#
+#    logger.info("done")
+#
+#    best_fit_values = map(lambda x: x['value'], res[1])
 
     filename = "%s_minuit_%s_results.txt" % (args.decay_function, args.triggername)
 
     logger.info("Saving results in %s..." % filename)
-
-    best_fit_values = map(lambda x: x['value'], res[1])
 
     with open(filename, "w+") as f:
         f.write("#")
@@ -355,7 +427,7 @@ if __name__ == "__main__":
 
         logger.info(
             "Collecting %s samples with %s walkers and a burn in of %s..." % (args.steps, args.n_walkers, args.burn_in))
-
+                
         bayes.sample(args.n_walkers, args.burn_in, args.steps)
 
         logger.info("done")

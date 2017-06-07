@@ -142,7 +142,7 @@ class BayesianAnalysis(object):
     def corner_plot(self):
 
         fig = corner.corner(self.samples, labels=self.parameter_names,
-                            truths=None)
+                            truths=None, show_titles=True,quantiles=[0.16, 0.50, 0.84])
 
         return fig
 

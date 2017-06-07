@@ -25,6 +25,9 @@ class DecayFunction(object):
         return map(lambda x:x.name, self.getFreeParameters())
 
     def setParameters(self, *values):
+        
+        # print(values)
+        
         freeParameters = self.getFreeParameters()
 
         for i, v in enumerate(freeParameters):
@@ -35,7 +38,11 @@ class DecayFunction(object):
 
 
 def willingale_function(t, alpha, tau, T, F):
-
+    
+    assert numpy.isfinite(T)
+    assert numpy.isfinite(F)
+    assert numpy.isfinite(tau)
+    
     out = numpy.zeros(t.flatten().shape[0])
     idx = (t < T)
     nidx = ~idx
@@ -709,7 +716,9 @@ class DecayLikelihood(object):
         for likeObj in self.likeObjects:
 
             if (likeObj.isCrossingGTI()):
-
+                
+                print("Crossing GTI")
+                
                 # Compute the flux for the first GTI
                 fluxes = []
 
@@ -723,8 +732,14 @@ class DecayLikelihood(object):
             else:
 
                 # Set the flux to the value foreseen by the decay function
-                flux = self.decayFunction.getFlux(likeObj.tmin[0], likeObj.tmax[0])
-
+                try:
+                
+                     flux = self.decayFunction.getFlux(likeObj.tmin[0], likeObj.tmax[0])
+                
+                except:
+                     
+                     return INVALID
+                
             try:
 
                 likeObj.setFlux(flux)
