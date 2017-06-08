@@ -315,17 +315,23 @@ if __name__ == "__main__":
     best_fit_values = np.array(map(lambda x: x[0], zip(minimizer.X(), range(len(parameters_name)))))
     
 #   ## Get MINOS errors
-#    minus_errors = []
-#    plus_errors = []
-#    
-#    for i, parameter_name in enumerate(parameters_name):
-#        
-#        eminus  = ROOT.Double ( 0 ) 
-#        eplus = ROOT.Double ( 0 ) 
-#        
-#        minimizer.GetMinosError(i, eminus, eplus)
-#        
-#        print("%s: %s +%s" % (parameter_name, eminus, eplus))
+    minus_errors = []
+    plus_errors = []
+    
+    for i, parameter_name in enumerate(parameters_name):
+        
+        eminus  = ROOT.Double ( 0 ) 
+        eplus = ROOT.Double ( 0 ) 
+        
+        minimizer.GetMinosError(i, eminus, eplus)
+    
+    print("\n\n=================================================")
+    print("Final results:")
+    print("=================================================\n\n")
+    
+    for i, parameter_name in enumerate(parameters_name):
+            
+        print("%s: %s +%s" % (parameter_name, minus_errors[i], plus_errors[i]))
     
 #    # Now prepare the arguments for Minuit
 #    minuit_args = collections.OrderedDict()
