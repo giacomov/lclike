@@ -324,6 +324,9 @@ if __name__ == "__main__":
         eplus = ROOT.Double ( 0 ) 
         
         minimizer.GetMinosError(i, eminus, eplus)
+        
+        minus_errors.append(eminus)
+        plus_errors.append(eplus)
     
     print("\n\n=================================================")
     print("Final results:")
